@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  kyc-app:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./app:/app
+    environment:
+      - TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
