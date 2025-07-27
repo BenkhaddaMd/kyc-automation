@@ -30,18 +30,17 @@ jobs:
       - name: Test Docker Build
         timeout-minutes: 5
         run: |
+          # Build with cache
           docker build -t kyc-app .
-          docker run -d -p 8501:8501 --name test-app kyc-app
           
-          # Wait for Streamlit to start (retry for 30 seconds)
-          for i in {1..30}; do
-            if curl -sSf http://localhost:8501/_stcore/health >/dev/null; then
-              echo "Streamlit is running!"
-              break
-            fi
-            sleep 1
-          done
+          # Run with explicit host binding
+          docker run -d -p 127.0.0.1:8501:8501 --name test-app kyc-app
           
-          # Final verification
-          curl -f http://localhost:8501/_stcore/health || exit 1
+          # Wait for startup with container logs check
+          timeout 30 bash -c 'until docker logs test-app 2>&1 | grep -q "Running on http://0.0.0.0:8501/"; do sleep 1; done'
+          
+          # Verify health endpoint
+          docker exec test-app curl -sSf http://localhost:8501/_stcore/health
+          
+          # Cleanup
           docker stop test-app
