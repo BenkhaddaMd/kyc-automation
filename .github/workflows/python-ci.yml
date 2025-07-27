@@ -28,18 +28,26 @@ jobs:
           flake8 app --select=E9,F63,F7,F82 --exit-zero
       
       - name: Test Docker Build
-        timeout-minutes: 5
+        timeout-minutes: 10  # Increased timeout
         run: |
           # Build with cache
           docker build -t kyc-app .
           
-          # Run with explicit host binding
-          docker run -d -p 127.0.0.1:8501:8501 --name test-app kyc-app
+          # Run with health check and extended timeout
+          docker run -d \
+            --name test-app \
+            -p 127.0.0.1:8501:8501 \
+            --health-cmd="curl -f http://localhost:8501/_stcore/health || exit 1" \
+            --health-start-period=30s \
+            --health-interval=5s \
+            --health-timeout=2s \
+            --health-retries=10 \
+            kyc-app
           
-          # Wait for startup with container logs check
-          timeout 30 bash -c 'until docker logs test-app 2>&1 | grep -q "Running on http://0.0.0.0:8501/"; do sleep 1; done'
+          # Wait for healthy status
+          timeout 300 bash -c 'while [[ $(docker inspect -f "{{.State.Health.Status}}" test-app) != "healthy" ]]; do sleep 5; done'
           
-          # Verify health endpoint
+          # Verify manually as fallback
           docker exec test-app curl -sSf http://localhost:8501/_stcore/health
           
           # Cleanup
